@@ -5,6 +5,9 @@ edition = "2024"
 description = "train a simple neural network on mnist dataset using burn."
 license = "MIT"
 
+[profile.dev.package."*"]
+opt-level = 2
+
 [dependencies]
 burn = { version = "0.18.0", features = ["train", "vision", "dataset", "wgpu"] }
 nalgebra = "0.33.2"

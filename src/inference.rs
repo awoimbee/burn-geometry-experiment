@@ -28,7 +28,7 @@ pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, params: Vec<f32>
         .map(|c| [c[0], c[1], c[2]])
         .collect::<Vec<_>>();
 
-    write_vtk_legacy(&point_cloud, &Path::new(artifact_dir).join("out.vtk"));
+    write_vtk_legacy(&point_cloud, &Path::new(artifact_dir).join("out.vtk")).unwrap();
 }
 
 fn write_vtk_legacy(points: &[[f32; 3]], path: &Path) -> std::io::Result<()> {

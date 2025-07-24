@@ -26,12 +26,12 @@ impl<B: Backend> GeometryAutoEncoder<B> {
     /// points2: [B, M, 3]
     fn pairwise_distances(&self, points1: &Tensor<B, 3>, points2: &Tensor<B, 3>) -> Tensor<B, 3> {
         // Expand dimensions for broadcasting
-        let p1_expanded = points1.clone().unsqueeze_dim(2); // [B, N, 1, 3]
-        let p2_expanded = points2.clone().unsqueeze_dim(1); // [B, 1, M, 3]
+        let p1_expanded = points1.clone().unsqueeze_dim::<4>(2); // [B, N, 1, 3]
+        let p2_expanded = points2.clone().unsqueeze_dim::<4>(1); // [B, 1, M, 3]
 
         // Compute squared distances
         let diff = p1_expanded - p2_expanded; // [B, N, M, 3]
-        let squared_distances = diff.powf_scalar(2.0).sum_dim(3); // [B, N, M]
+        let squared_distances = diff.powf_scalar(2.0).sum_dim(3).squeeze::<3>(3); // [B, N, M]
 
         squared_distances.sqrt()
     }

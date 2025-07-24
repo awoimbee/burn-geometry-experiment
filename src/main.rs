@@ -28,7 +28,7 @@ fn main() {
         let start = std::time::Instant::now();
         training::train::<MyAotudiffBackend>(
             artifact_dir,
-            TrainingConfig::new(GeometryAutoEncoderConfig::new(10_000), AdamConfig::new()),
+            TrainingConfig::new(GeometryAutoEncoderConfig::new(1000), AdamConfig::new()),
             device.clone(),
         );
         let duration = start.elapsed();

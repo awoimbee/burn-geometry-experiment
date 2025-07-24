@@ -1,4 +1,4 @@
-use burn::module::Module;
+use burn::module::{Module, Parameter};
 use burn::nn::attention::{self, MhaInput};
 use burn::nn::pool::{AdaptiveAvgPool1d, AdaptiveAvgPool1dConfig};
 use burn::nn::{LayerNorm, LayerNormConfig, Linear, LinearConfig, Relu};
@@ -6,13 +6,67 @@ use burn::tensor::backend::Backend;
 use burn::tensor::{Int, Tensor};
 
 /// k-NN helper (squared L2, brute-force for clarity)
-fn knn<B: Backend>(x: Tensor<B, 3>, k: usize) -> Tensor<B, 3, Int> {
-    // x: [B, N, 3]
-    let xi = x.clone().unsqueeze_dim(2); // [B, N, 1, 3]
-    let xj = x.clone().unsqueeze_dim(1); // [B, 1, N, 3]
-    let dist = (xi - xj).powi_scalar(2).sum_dim(3); // [B, N, N]
-    // top-k along last dim => indices [B, N, k]
-    dist.topk_with_indices(k, 3).1
+pub fn knn<B: Backend>(points: Tensor<B, 3>, k: usize) -> Tensor<B, 3, Int> {
+    let device = points.device();
+    let shape = points.shape();
+    let num_point_clouds = shape.dims[0];
+    let num_points = shape.dims[1];
+
+    // Expand dims for broadcasting: [B, N, 1, 3] and [B, 1, N, 3]
+    let points_i = points.clone().unsqueeze_dim::<4>(2); // [B, N, 1, 3]
+    let points_j = points.unsqueeze_dim::<4>(1); // [B, 1, N, 3]
+    // Pairwise squared distances: [B, N, N]
+    let diff = points_i.clone() - points_j; // [B, N, N, 3]
+    let mut dist2 = diff.powi_scalar(2).sum_dim(3).squeeze::<3>(3); // [B, N, N]
+
+    let indices = Tensor::<B, 1, Int>::arange(0..(num_points as i64), &device);
+    // diagonal mask
+    let mask = indices
+        .clone()
+        .unsqueeze::<2>() // [N, 1]
+        .expand([num_points, num_points]) // [N, N]
+        .equal(indices.unsqueeze::<1>().expand([num_points, num_points])); // [N, N]
+    let mask = mask
+        .unsqueeze::<3>()
+        .expand([num_point_clouds, num_points, num_points]); // [B, N, N]
+    dist2 = dist2.mask_fill(mask, 1e10); // Set diagonal to large value
+
+    // Get indices of k smallest distances (excluding self)
+    // burn's topk returns largest, so use negative distances
+    let neg_dist2 = dist2.neg();
+    let (_topk_vals, topk_indices) = neg_dist2.topk_with_indices(k, 2); // [B, N, k]
+
+    topk_indices
+
+    // // Exclude self (distance 0): set diagonal to large value
+    // // (burn does not have eye or diag, so we use scatter)
+    // for _pt in 0..num_point_clouds {
+    //     // // For each batch, set dist2[b, i, i] = 1e10
+    //     // let indices = Tensor::<B, 1, Int>::arange(0..(num_points as i64), &device);
+    //     // dist2 = dist2.scatter(
+    //     //     1, // dim
+    //     //     indices.unsqueeze::<2>().expand([num_points, num_points]), // [N, N]
+    //     //     Tensor::full([num_points, num_points], 1e10, &device),
+    //     // );
+    //     //
+    //     // dist2[b, i, i] = 1e10 for all i
+    //     let mut dist2_b = dist2.index([b]);
+    //     let diag_indices = Tensor::<B, 1, Int>::arange(0..(num_points as i64), &device);
+    //     // Set diagonal
+    //     dist2_b = dist2_b.index_put(
+    //         [diag_indices.clone(), diag_indices], // [i, i]
+    //         Tensor::full([num_points], 1e10, &device),
+    //     );
+    //     // Write back
+    //     dist2 = dist2.index_put([Tensor::from_int([b], &device)], dist2_b);
+    // }
+
+    // // Get indices of k smallest distances (excluding self)
+    // // burn's topk returns largest, so use negative distances
+    // let neg_dist2 = dist2.neg();
+    // let (_topk_vals, topk_indices) = neg_dist2.topk_with_indices(k, 3); // [B, N, k]
+
+    // topk_indices
 }
 
 /// EdgeConv patch (local neighborhoods) embedder to produce a "local shape token"
@@ -59,22 +113,22 @@ impl<B: Backend> EdgeConvEmbed<B> {
         let idx = knn(points.clone(), k); // [B, N, k]
 
         // 2. Gather neighbour features
-        let points_exp = points.clone().unsqueeze_dim(2); // [B, N, 1, d]
-        let idx_exp = idx.unsqueeze_dim(3).repeat(&[1, 1, 1, d]); // [B, N, k, d]
+        let points_exp = points.clone().unsqueeze_dim::<4>(2); // [B, N, 1, d]
+        let idx_exp = idx.unsqueeze_dim::<4>(3).repeat(&[1, 1, 1, d]); // [B, N, k, d]
         let neighbors = points_exp.gather(2, idx_exp); // [B, N, k, d]
 
         // 3. Edge features: h_θ(x_i) || h_φ(x_j - x_i)
         let x_i = points; // [B, N, d]
         let x_j = neighbors; // [B, N, k, d]
-        let diff = x_j - x_i.clone().unsqueeze_dim(2); // [B, N, k, d]
+        let diff = x_j - x_i.clone().unsqueeze_dim::<4>(2); // [B, N, k, d]
 
         let h_theta = self.theta.forward(x_i); // [B, N, C]
         let h_phi = self.phi.forward(diff); // [B, N, k, C]
 
-        let edge = h_theta.unsqueeze_dim(2) + h_phi; // [B, N, k, C]
+        let edge = h_theta.unsqueeze_dim::<4>(2) + h_phi; // [B, N, k, C]
 
         // 4. Max-pool over neighbours
-        let pooled = edge.max_dim(2); // [B, N, C]
+        let pooled = edge.max_dim(2).squeeze::<3>(2); // [B, N, C]
 
         // 5. Final 1×1 conv + norm
         let out = self.psi.forward(pooled); // [B, N, C]
@@ -160,7 +214,7 @@ impl<B: Backend> GeometryEncoder<B> {
         let pooled = self
             .pool
             .forward(tokens.swap_dims(1, 2)) // [B, 128, 1]
-            .squeeze(2); // [B, 128]
+            .squeeze::<2>(2); // [B, 128]
         self.proj.forward(pooled) // [B, 256]
     }
 }

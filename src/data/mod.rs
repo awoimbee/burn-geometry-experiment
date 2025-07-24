@@ -70,7 +70,7 @@ impl PointCloudDataset {
 
 #[derive(Clone, Debug)]
 pub struct PointCloudBatch<B: Backend> {
-    pub points: Tensor<B, 3>, // [batch_size, n_points, 3]
+    pub points: Tensor<B, 3>, // shape: [batch_size, n_points, 3]
 }
 
 /// Batcher that converts PointCloudItems into batched tensors

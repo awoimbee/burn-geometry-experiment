@@ -1,17 +1,8 @@
 use nalgebra::VectorView3;
-use ndarray::{Array1, array};
 use rand::distr::Uniform;
 use rand::distr::weighted::WeightedIndex;
 use rand::prelude::*;
 use stl_io::IndexedMesh;
-
-fn ndarray_cross(a: Array1<f32>, b: Array1<f32>) -> Array1<f32> {
-    array![
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
-}
 
 /// n_points: number of points to sample of the surface
 pub fn preprocess_mesh(
