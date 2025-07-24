@@ -2,6 +2,7 @@ use crate::data::MnistBatcher;
 use crate::model::ModelConfig;
 use burn::data::dataloader::DataLoaderBuilder;
 use burn::data::dataset::vision::MnistDataset;
+use burn::data::dataset::HuggingfaceDatasetLoader;
 use burn::record::CompactRecorder;
 use burn::train::LearnerBuilder;
 use burn::train::metric::{AccuracyMetric, CpuMemory, CpuTemperature, CpuUse, LossMetric};
@@ -38,6 +39,11 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     B::seed(config.seed);
 
     let batcher = MnistBatcher::default();
+
+    let dataloader_base = HuggingfaceDatasetLoader::new("MoElrefaie/DrivAerNet")
+        .with_huggingface_cache_dir(huggingface_cache_dir);
+    dataloader_base.dataset(split)
+
 
     let dataloader_train = DataLoaderBuilder::new(batcher.clone())
         .batch_size(config.batch_size)

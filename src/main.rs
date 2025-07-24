@@ -22,7 +22,7 @@ fn main() {
 
     let device = burn::backend::wgpu::WgpuDevice::default();
 
-    let artifact_dir = "mnist_artifacts";
+    let artifact_dir = "artifacts";
     let start = std::time::Instant::now();
     training::train::<MyAotudiffBackend>(
         artifact_dir,

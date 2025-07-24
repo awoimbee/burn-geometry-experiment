@@ -5,10 +5,10 @@ edition = "2024"
 description = "train a simple neural network on mnist dataset using burn."
 license = "MIT"
 
-[[bin]]
-name = "burn-mnist"
-path = "src/main.rs"
+# [[bin]]
+# name = "burn-mnist"
+# path = "src/main.rs"
 
 [dependencies]
-burn = { version = "0.17.0", features = ["train", "vision", "dataset", "wgpu"] }
+burn = { version = "0.18.0", features = ["train", "vision", "dataset", "wgpu"] }
 rand = "0.9.1"
