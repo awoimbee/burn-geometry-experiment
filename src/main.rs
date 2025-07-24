@@ -4,14 +4,13 @@ mod inference;
 mod model;
 mod training;
 
-use std::num::NonZeroUsize;
-
-use crate::model::ModelConfig;
-use crate::training::TrainingConfig;
+use std::env;
 
 use burn::backend::{Autodiff, Wgpu};
-use burn::data::dataset::transform::Window;
 use burn::optim::AdamConfig;
+
+use crate::model::GeometryAutoEncoderConfig;
+use crate::training::TrainingConfig;
 
 /// Main function to run the training and inference.
 ///
@@ -23,17 +22,21 @@ fn main() {
     let device = burn::backend::wgpu::WgpuDevice::default();
 
     let artifact_dir = "artifacts";
-    let start = std::time::Instant::now();
-    training::train::<MyAotudiffBackend>(
-        artifact_dir,
-        TrainingConfig::new(ModelConfig::new(10, 512), AdamConfig::new()),
-        device.clone(),
-    );
-    let duration = start.elapsed();
-    println!("Training time: {:?}", duration);
-    let random_start = rand::random::<u8>().into();
-    let items = burn::data::dataset::vision::MnistDataset::test()
-        .window(random_start, NonZeroUsize::new(10).unwrap())
-        .unwrap();
-    crate::inference::infer::<MyBackend>(artifact_dir, device, items);
+
+    let args = env::args().collect::<Vec<_>>();
+    if args[1] == "train" {
+        let start = std::time::Instant::now();
+        training::train::<MyAotudiffBackend>(
+            artifact_dir,
+            TrainingConfig::new(GeometryAutoEncoderConfig::new(10_000), AdamConfig::new()),
+            device.clone(),
+        );
+        let duration = start.elapsed();
+        println!("Training time: {duration:?}");
+    } else if args[1] == "generate" {
+        let params: Vec<f32> = serde_json::from_str(&args[2]).unwrap();
+        crate::inference::infer::<MyBackend>(artifact_dir, device, params);
+    } else {
+        println!("Usage: {} train|infer [PARAMS]", args[0]);
+    }
 }

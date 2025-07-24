@@ -1,16 +1,17 @@
-use crate::data::MnistBatcher;
-use crate::model::ModelConfig;
 use burn::data::dataloader::DataLoaderBuilder;
-use burn::data::dataset::vision::MnistDataset;
-use burn::data::dataset::HuggingfaceDatasetLoader;
+use burn::optim::AdamConfig;
+use burn::prelude::*;
 use burn::record::CompactRecorder;
+use burn::tensor::backend::AutodiffBackend;
 use burn::train::LearnerBuilder;
-use burn::train::metric::{AccuracyMetric, CpuMemory, CpuTemperature, CpuUse, LossMetric};
-use burn::{optim::AdamConfig, prelude::*, tensor::backend::AutodiffBackend};
+use burn::train::metric::LossMetric;
+
+use crate::data::{PointCloudBatcher, PointCloudDataset};
+use crate::model::GeometryAutoEncoderConfig;
 
 #[derive(Config)]
 pub struct TrainingConfig {
-    pub model: ModelConfig,
+    pub model: GeometryAutoEncoderConfig,
     pub optimizer: AdamConfig,
     #[config(default = 10)]
     pub num_epochs: usize,
@@ -38,34 +39,37 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 
     B::seed(config.seed);
 
-    let batcher = MnistBatcher::default();
-
-    let dataloader_base = HuggingfaceDatasetLoader::new("MoElrefaie/DrivAerNet")
-        .with_huggingface_cache_dir(huggingface_cache_dir);
-    dataloader_base.dataset(split)
-
-
+    let batcher = PointCloudBatcher::new(device.clone(), config.model.num_points);
     let dataloader_train = DataLoaderBuilder::new(batcher.clone())
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MnistDataset::train());
+        .build(PointCloudDataset::from_dir(
+            "./dataset",
+            "train",
+            config.model.num_points,
+        ));
 
+    let batcher = PointCloudBatcher::new(device.clone(), config.model.num_points);
     let dataloader_test = DataLoaderBuilder::new(batcher)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(MnistDataset::test());
+        .build(PointCloudDataset::from_dir(
+            "./dataset",
+            "test",
+            config.model.num_points,
+        ));
 
     let learner = LearnerBuilder::new(artifact_dir)
-        .metric_train_numeric(AccuracyMetric::new())
-        .metric_valid_numeric(AccuracyMetric::new())
-        .metric_train_numeric(CpuUse::new())
-        .metric_valid_numeric(CpuUse::new())
-        .metric_train_numeric(CpuMemory::new())
-        .metric_valid_numeric(CpuMemory::new())
-        .metric_train_numeric(CpuTemperature::new())
-        .metric_valid_numeric(CpuTemperature::new())
+        // .metric_train_numeric(AccuracyMetric::new())
+        // .metric_valid_numeric(AccuracyMetric::new())
+        // .metric_train_numeric(CpuUse::new())
+        // .metric_valid_numeric(CpuUse::new())
+        // .metric_train_numeric(CpuMemory::new())
+        // .metric_valid_numeric(CpuMemory::new())
+        // .metric_train_numeric(CpuTemperature::new())
+        // .metric_valid_numeric(CpuTemperature::new())
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
