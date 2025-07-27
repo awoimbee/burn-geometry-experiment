@@ -5,15 +5,15 @@ edition = "2024"
 description = "train a simple neural network on mnist dataset using burn."
 license = "MIT"
 
-# [profile.dev.package."*"]
-# opt-level = 2
+[profile.dev.package."*"]
+opt-level = 2
 
 [dependencies]
-burn = { version = "0.18.0", features = ["train", "vision", "dataset", "wgpu"] }
+burn = { version = "0.18.0", features = ["train", "ndarray", "vulkan"] }
 clap = { version = "4.5.41", features = ["derive"] }
+log = "0.4.27"
 nalgebra = "0.33.2"
 ndarray = "0.16.1"
 rand = "0.9.1"
-rand_distr = "0.5.1"
 serde_json = "1.0.141"
 stl_io = "0.8.5"

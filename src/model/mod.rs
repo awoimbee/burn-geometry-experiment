@@ -64,11 +64,11 @@ impl<B: Backend> ValidStep<PointCloudBatch<B>, RegressionOutput<B>> for Geometry
 
 #[derive(Config, Debug)]
 pub struct GeometryAutoEncoderConfig {
-    pub num_points: usize,
+    pub num_points_sampled: usize,
 }
 
 impl GeometryAutoEncoderConfig {
     pub fn init<B: Backend>(&self, device: &B::Device) -> GeometryAutoEncoder<B> {
-        GeometryAutoEncoder::new(self.num_points, device)
+        GeometryAutoEncoder::new(self.num_points_sampled, device)
     }
 }

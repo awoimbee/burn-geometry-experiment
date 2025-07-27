@@ -39,7 +39,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
 
     B::seed(config.seed);
 
-    let batcher = PointCloudBatcher::new(device.clone(), config.model.num_points);
+    let batcher = PointCloudBatcher::new(config.model.num_points_sampled);
     let dataloader_train = DataLoaderBuilder::new(batcher.clone())
         .batch_size(config.batch_size)
         .shuffle(config.seed)
@@ -47,10 +47,10 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .build(PointCloudDataset::from_dir(
             "./dataset",
             "train",
-            config.model.num_points,
+            config.model.num_points_sampled,
         ));
 
-    let batcher = PointCloudBatcher::new(device.clone(), config.model.num_points);
+    let batcher = PointCloudBatcher::new(config.model.num_points_sampled);
     let dataloader_test = DataLoaderBuilder::new(batcher)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
@@ -58,7 +58,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .build(PointCloudDataset::from_dir(
             "./dataset",
             "test",
-            config.model.num_points,
+            config.model.num_points_sampled,
         ));
 
     let learner = LearnerBuilder::new(artifact_dir)

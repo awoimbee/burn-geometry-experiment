@@ -20,7 +20,7 @@ target/
 
 /target
 /checkpoints
-/mnist_artifacts
+/artifacts
 /dataset/
 
 *.ipynb

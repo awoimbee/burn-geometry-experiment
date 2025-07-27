@@ -13,13 +13,11 @@ use preprocess::preprocess_mesh;
 #[derive(Clone, Debug)]
 pub struct PointCloudItem {
     pub points: Vec<f32>, // [n_points * 3] flattened
-    pub filename: String,
 }
 
 /// Dataset that holds all preprocessed point clouds in memory
 pub struct PointCloudDataset {
     pub items: Vec<PointCloudItem>,
-    n_points: usize,
 }
 
 impl Dataset<PointCloudItem> for PointCloudDataset {
@@ -54,17 +52,18 @@ impl PointCloudDataset {
                 match preprocess_mesh(mesh, n_points) {
                     Ok(points) => {
                         let filename = path.file_name().unwrap().to_string_lossy().to_string();
-                        items.push(PointCloudItem { points, filename });
+                        items.push(PointCloudItem { points });
                     }
                     Err(e) => {
                         eprintln!("Failed to load {}: {}", path.display(), e);
                     }
                 }
+                break; // TODO: remove
             }
         }
 
         println!("Loaded {} point clouds", items.len());
-        Self { items, n_points }
+        Self { items }
     }
 }
 
@@ -75,18 +74,17 @@ pub struct PointCloudBatch<B: Backend> {
 
 /// Batcher that converts PointCloudItems into batched tensors
 #[derive(Clone)]
-pub struct PointCloudBatcher<B: Backend> {
-    device: B::Device,
+pub struct PointCloudBatcher {
     n_points: usize,
 }
 
-impl<B: Backend> PointCloudBatcher<B> {
-    pub fn new(device: B::Device, n_points: usize) -> Self {
-        Self { device, n_points }
+impl PointCloudBatcher {
+    pub fn new(n_points: usize) -> Self {
+        Self { n_points }
     }
 }
 
-impl<B: Backend> Batcher<B, PointCloudItem, PointCloudBatch<B>> for PointCloudBatcher<B> {
+impl<B: Backend> Batcher<B, PointCloudItem, PointCloudBatch<B>> for PointCloudBatcher {
     fn batch(&self, items: Vec<PointCloudItem>, device: &B::Device) -> PointCloudBatch<B> {
         let batch_size = items.len();
 
