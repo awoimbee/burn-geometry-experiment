@@ -33,7 +33,6 @@ impl<B: Backend> GeometryAutoEncoder<B> {
 
         let batch_size = points.dims()[0];
         let flattened_size = points.dims()[1] * points.dims()[2]; // N * 3
-
         let output = reconstructed.reshape([batch_size, flattened_size]);
         let targets = points.reshape([batch_size, flattened_size]);
 

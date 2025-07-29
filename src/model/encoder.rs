@@ -5,44 +5,7 @@ use burn::nn::{LayerNorm, LayerNormConfig, Linear, LinearConfig, Relu};
 use burn::tensor::backend::Backend;
 use burn::tensor::{Int, Tensor};
 
-/// k-NN helper (squared L2, brute-force for clarity)
-// pub fn knn<B: Backend>(points: Tensor<B, 3>, k: usize) -> Tensor<B, 3, Int> {
-//     let device = points.device();
-//     let shape = points.shape();
-//     let num_point_clouds = shape.dims[0];
-//     let num_points = shape.dims[1];
-
-//     // Expand dims for broadcasting: [B, N, 1, 3] and [B, 1, N, 3]
-//     let points_i = points.clone().unsqueeze_dim::<4>(2); // [B, N, 1, 3]
-//     let points_j = points.unsqueeze_dim::<4>(1); // [B, 1, N, 3]
-//     // Pairwise squared distances: [B, N, N]
-//     let diff = points_i.clone() - points_j; // [B, N, N, 3]
-//     let mut dist2 = diff.powi_scalar(2).sum_dim(3).squeeze::<3>(3); // [B, N, N]
-
-//     let indices = Tensor::<B, 1, Int>::arange(0..(num_points as i64), &device);
-//     // diagonal mask
-//     let mask = indices
-//         .clone()
-//         .unsqueeze::<2>() // [N, 1]
-//         .expand([num_points, num_points]) // [N, N]
-//         .equal(indices.unsqueeze::<1>().expand([num_points, num_points])); // [N, N]
-//     let mask = mask
-//         .unsqueeze::<3>()
-//         .expand([num_point_clouds, num_points, num_points]); // [B, N, N]
-//     dist2 = dist2.mask_fill(mask, 1e10); // Set diagonal to large value
-
-//     // Get indices of k smallest distances (excluding self)
-//     // burn's topk returns largest, so use negative distances
-//     let neg_dist2 = dist2.neg();
-//     let (_topk_vals, topk_indices) = neg_dist2.topk_with_indices(k, 2); // [B, N, k]
-
-//     topk_indices
-// }
-
-fn batched_knn<B: Backend>(points: Tensor<B, 3>, k: usize) -> Tensor<B, 3, Int>
-where
-    B: Backend,
-{
+fn batched_knn<B: Backend>(points: Tensor<B, 3>, k: usize) -> Tensor<B, 3, Int> {
     let device = points.device();
     let [batch_size, num_points, _] = points.dims();
 
@@ -54,9 +17,8 @@ where
     let distances = diff.powi_scalar(2).sum_dim(3).squeeze::<3>(3).sqrt(); // (B, N, N)
 
     // Create diagonal mask and set diagonal to infinity
-    let eye = Tensor::<B, 2>::eye(num_points, &device);
-    let mask = eye.unsqueeze_dim::<3>(0).repeat(&[0, batch_size]); // (B, N, N)
-    // let inf_tensor = Tensor::<B, 3>::full(distances.shape(), f32::INFINITY, &device);
+    let eye = Tensor::<B, 2>::eye(num_points, &device); // (N, N)
+    let mask = eye.unsqueeze::<3>().repeat(&[batch_size, 1, 1]); // (B, N, N)
 
     // Apply mask: set diagonal elements to infinity
     let distances_masked: Tensor<B, 3> =
@@ -84,9 +46,9 @@ pub struct EdgeConvEmbed<B: Backend> {
 }
 
 impl<B: Backend> EdgeConvEmbed<B> {
-    /// k: how many nearest neighbours (20, 32, 40)
+    /// k (K): how many nearest neighbours (20, 32, 40)
     /// in_dim: how many input channels (xyz=3, can be more if includes normals, ...)
-    /// out_dim: dimension of the resulting per-point feature that will later be fed to the Transformer (128, ...)
+    /// out_dim (C): dimension of the resulting per-point feature that will later be fed to the Transformer (128, ...)
     pub fn new(k: usize, in_dim: usize, out_dim: usize, device: &B::Device) -> Self {
         let theta = LinearConfig::new(in_dim, out_dim).init(device);
         let phi = LinearConfig::new(in_dim, out_dim).init(device);
@@ -112,10 +74,9 @@ impl<B: Backend> EdgeConvEmbed<B> {
         let points_exp = points
             .clone()
             .unsqueeze_dim::<4>(2)
-            .repeat(&[1, 1, self.k, 1]); // [B, N, 1, 3]
+            .repeat(&[1, 1, self.k, 1]); // [B, N, k, 3]
         let idx_exp = idx.unsqueeze_dim::<4>(3).repeat(&[1, 1, 1, 3]); // [B, N, k, 3]
         let neighbors = points_exp.gather(1, idx_exp); // [B, N, k, 3]
-        // info!("neighbors: {:?}", neighbors.shape());
 
         // 3. Edge features: h_θ(x_i) || h_φ(x_j - x_i)
         let x_i = points; // [B, N, 3]

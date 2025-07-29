@@ -51,7 +51,7 @@ impl PointCloudDataset {
 
                 match preprocess_mesh(mesh, n_points) {
                     Ok(points) => {
-                        let filename = path.file_name().unwrap().to_string_lossy().to_string();
+                        // let filename = path.file_name().unwrap().to_string_lossy().to_string();
                         items.push(PointCloudItem { points });
                     }
                     Err(e) => {
