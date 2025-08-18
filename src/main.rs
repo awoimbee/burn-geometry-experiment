@@ -4,7 +4,7 @@ mod inference;
 mod model;
 mod training;
 
-use burn::backend::{Autodiff, NdArray};
+use burn::backend::{Autodiff, Wgpu};
 use burn::optim::AdamConfig;
 use clap::{Parser, Subcommand};
 
@@ -30,7 +30,8 @@ enum Commands {
     },
 }
 
-type MyBackend = NdArray<f32, i32>;
+// type MyBackend = NdArray<f32, i32>;
+type MyBackend = Wgpu<f32, i32>;
 type MyAutodiffBackend = Autodiff<MyBackend>;
 
 /// Main function to run the training and inference.
@@ -38,8 +39,8 @@ type MyAutodiffBackend = Autodiff<MyBackend>;
 /// This function initializes the WGPU device, trains the model, and then performs inference on a sample image.
 fn main() {
     let cli = Cli::parse();
-    // let device = burn::backend::wgpu::WgpuDevice::default();
-    let device = burn::backend::ndarray::NdArrayDevice::default();
+    let device = burn::backend::wgpu::WgpuDevice::default();
+    // let device = burn::backend::ndarray::NdArrayDevice::default();
     let artifact_dir = "artifacts";
 
     match cli.command {

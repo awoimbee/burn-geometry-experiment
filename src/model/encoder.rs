@@ -3,7 +3,10 @@ use burn::nn::attention::{self, MhaInput};
 use burn::nn::pool::{AdaptiveAvgPool1d, AdaptiveAvgPool1dConfig};
 use burn::nn::{LayerNorm, LayerNormConfig, Linear, LinearConfig, Relu};
 use burn::tensor::backend::Backend;
+use burn::tensor::cast::ToElement;
 use burn::tensor::{Int, Tensor};
+
+use crate::debug_assert_not_nan;
 
 fn batched_knn<B: Backend>(points: Tensor<B, 3>, k: usize) -> Tensor<B, 3, Int> {
     let device = points.device();
@@ -85,6 +88,8 @@ impl<B: Backend> EdgeConvEmbed<B> {
 
         let h_theta = self.theta.forward(x_i); // [B, N, C]
         let h_phi = self.phi.forward(diff); // [B, N, k, C]
+        debug_assert_not_nan!(h_theta); // crashes here (h_theta contains NaN)
+        debug_assert_not_nan!(h_phi);
 
         let edge = h_theta.unsqueeze_dim::<4>(2) + h_phi; // [B, N, k, C]
 

@@ -12,6 +12,20 @@ use encoder::GeometryEncoder;
 
 use crate::data::PointCloudBatch;
 
+#[macro_export]
+macro_rules! debug_assert_not_nan {
+    ($tensor:expr) => {
+        debug_assert!(!$tensor.clone().is_nan().any().into_scalar().to_bool(), "Tensor contains NaN");
+        debug_assert!(!$tensor.clone().is_inf().any().into_scalar().to_bool(), "Tensor contains inf");
+    };
+    ($tensor:expr, $($arg:tt)*) => {
+        debug_assert!(
+            !$tensor.clone().is_nan().any().into_scalar().to_bool(),
+            $($arg)*
+        );
+    };
+}
+
 #[derive(Module, Debug)]
 pub struct GeometryAutoEncoder<B: Backend> {
     pub encoder: GeometryEncoder<B>,

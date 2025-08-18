@@ -58,7 +58,6 @@ impl PointCloudDataset {
                         eprintln!("Failed to load {}: {}", path.display(), e);
                     }
                 }
-                break; // TODO: remove
             }
         }
 

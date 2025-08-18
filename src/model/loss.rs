@@ -31,7 +31,7 @@ impl<B: Backend> GeometryAutoEncoder<B> {
 
         // Compute squared distances
         let diff = p1_expanded - p2_expanded; // [B, N, M, 3]
-        let squared_distances = diff.powf_scalar(2.0).sum_dim(3).squeeze::<3>(3); // [B, N, M]
+        let squared_distances = diff.powi_scalar(2).sum_dim(3).squeeze::<3>(3); // [B, N, M]
 
         squared_distances.sqrt()
     }
