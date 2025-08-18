@@ -150,7 +150,7 @@ impl<B: Backend> Transformer<B> {
     }
 }
 
-/// Complete geometry encoder: point cloud -> 256-D latent
+/// Complete geometry encoder: point cloud -> L-D latent
 #[derive(Module, Debug)]
 pub struct GeometryEncoder<B: Backend> {
     patch_embed: EdgeConvEmbed<B>,
@@ -160,11 +160,11 @@ pub struct GeometryEncoder<B: Backend> {
 }
 
 impl<B: Backend> GeometryEncoder<B> {
-    pub fn new(device: &B::Device) -> Self {
+    pub fn new(latent_dim: usize, device: &B::Device) -> Self {
         let patch_embed = EdgeConvEmbed::new(32, 3, 128, device);
         let transformer = Transformer::new(128, 8, device); // embed_dim=128, 8 heads
         let pool = AdaptiveAvgPool1dConfig::new(1).init(); // global average
-        let proj = LinearConfig::new(128, 256).init(device); // 256-D latent
+        let proj = LinearConfig::new(128, latent_dim).init(device); // L-D latent
         Self {
             patch_embed,
             transformer,
@@ -173,7 +173,7 @@ impl<B: Backend> GeometryEncoder<B> {
         }
     }
 
-    /// points: [B, N, 3]  -> latent: [B, 256]
+    /// points: [B, N, 3]  -> latent: [B, L]
     pub fn forward(&self, points: Tensor<B, 3>) -> Tensor<B, 2> {
         let tokens = self.patch_embed.forward(points); // [B, N, 128]
         let tokens = self.transformer.forward(tokens); // [B, N, 128]
@@ -181,6 +181,6 @@ impl<B: Backend> GeometryEncoder<B> {
             .pool
             .forward(tokens.swap_dims(1, 2)) // [B, 128, 1]
             .squeeze::<2>(2); // [B, 128]
-        self.proj.forward(pooled) // [B, 256]
+        self.proj.forward(pooled) // [B, L]
     }
 }

@@ -34,8 +34,8 @@ pub struct GeometryAutoEncoder<B: Backend> {
 
 impl<B: Backend> GeometryAutoEncoder<B> {
     pub fn new(num_points: usize, device: &B::Device) -> Self {
-        let encoder = GeometryEncoder::new(device);
-        let decoder = PointCloudDecoder::new(256, num_points, device);
+        let encoder = GeometryEncoder::new(8, device);
+        let decoder = PointCloudDecoder::new(8, num_points, device);
         Self { encoder, decoder }
     }
 
@@ -64,8 +64,9 @@ impl<B: AutodiffBackend> TrainStep<PointCloudBatch<B>, RegressionOutput<B>>
 {
     fn step(&self, batch: PointCloudBatch<B>) -> TrainOutput<RegressionOutput<B>> {
         let item = self.forward(batch.points);
+        let grads = item.loss.backward();
 
-        TrainOutput::new(self, item.loss.backward(), item)
+        TrainOutput::new(self, grads, item)
     }
 }
 

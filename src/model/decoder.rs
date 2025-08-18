@@ -26,7 +26,7 @@ impl<B: Backend> PointCloudDecoder<B> {
         }
     }
 
-    /// latent: [B, 256] -> point cloud: [B, N, 3]
+    /// latent: [B, L] -> point cloud: [B, N, 3]
     pub fn forward(&self, latent: Tensor<B, 2>) -> Tensor<B, 3> {
         let mut x = latent;
         for (i, layer) in self.layers.iter().enumerate() {

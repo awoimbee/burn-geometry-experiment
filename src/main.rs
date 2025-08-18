@@ -5,6 +5,7 @@ mod model;
 mod training;
 
 use burn::backend::{Autodiff, Wgpu};
+use burn::grad_clipping::GradientClippingConfig;
 use burn::optim::AdamConfig;
 use clap::{Parser, Subcommand};
 
@@ -45,12 +46,12 @@ fn main() {
 
     match cli.command {
         Commands::Train {} => {
-            let start = std::time::Instant::now();
-            training::train::<MyAutodiffBackend>(
-                artifact_dir,
-                TrainingConfig::new(GeometryAutoEncoderConfig::new(1000), AdamConfig::new()),
-                device,
+            let training_config = TrainingConfig::new(
+                GeometryAutoEncoderConfig::new(2000),
+                AdamConfig::new().with_grad_clipping(Some(GradientClippingConfig::Norm(2.0))),
             );
+            let start = std::time::Instant::now();
+            training::train::<MyAutodiffBackend>(artifact_dir, training_config, device);
             let duration = start.elapsed();
             println!("Training time: {duration:?}");
         }
