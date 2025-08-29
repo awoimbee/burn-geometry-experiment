@@ -13,9 +13,9 @@ use crate::model::GeometryAutoEncoderConfig;
 pub struct TrainingConfig {
     pub model: GeometryAutoEncoderConfig,
     pub optimizer: AdamConfig,
-    #[config(default = 10)]
+    #[config(default = 30)]
     pub num_epochs: usize,
-    #[config(default = 64)]
+    #[config(default = 1)]
     pub batch_size: usize,
     #[config(default = 4)]
     pub num_workers: usize,
@@ -85,6 +85,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
     model_trained
+        .model
         .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
         .expect("Trained model should be saved successfully");
 }

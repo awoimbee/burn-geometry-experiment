@@ -88,8 +88,8 @@ impl<B: Backend> EdgeConvEmbed<B> {
 
         let h_theta = self.theta.forward(x_i); // [B, N, C]
         let h_phi = self.phi.forward(diff); // [B, N, k, C]
-        debug_assert_not_nan!(h_theta); // crashes here (h_theta contains NaN)
-        debug_assert_not_nan!(h_phi);
+        debug_assert_not_nan!(self.theta.weight.val());
+        debug_assert_not_nan!(self.phi.weight.val());
 
         let edge = h_theta.unsqueeze_dim::<4>(2) + h_phi; // [B, N, k, C]
 

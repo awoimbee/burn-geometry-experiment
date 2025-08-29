@@ -26,7 +26,7 @@ enum Commands {
     /// Generate a geometry from latent parameters
     Generate {
         /// Path to the directory where the model artifacts are saved.
-        #[arg(short, long)]
+        #[arg(short, long, num_args = 1..)]
         parameters: Vec<f32>,
     },
 }
@@ -47,7 +47,7 @@ fn main() {
     match cli.command {
         Commands::Train {} => {
             let training_config = TrainingConfig::new(
-                GeometryAutoEncoderConfig::new(2000),
+                GeometryAutoEncoderConfig::new(5000),
                 AdamConfig::new().with_grad_clipping(Some(GradientClippingConfig::Norm(2.0))),
             );
             let start = std::time::Instant::now();

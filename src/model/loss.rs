@@ -36,15 +36,6 @@ impl<B: Backend> GeometryAutoEncoder<B> {
         squared_distances.sqrt()
     }
 
-    fn smoothness_loss(&self, points: &Tensor<B, 3>) -> Tensor<B, 1> {
-        let distances = self.pairwise_distances(points, points);
-        // Use exponential weighting to focus on nearby points
-        let weights = (-distances.clone()).exp(); // Closer points get higher weight
-        let weighted_distances = distances * weights;
-
-        weighted_distances.mean()
-    }
-
     pub fn compute_loss(
         &self,
         points: &Tensor<B, 3>,
@@ -57,9 +48,6 @@ impl<B: Backend> GeometryAutoEncoder<B> {
         // Optional: L2 regularization on latent codes
         let latent_reg = latent.clone().powf_scalar(2.0).mean() * 0.001;
 
-        // Optional: Encourage smoothness in point cloud
-        let smoothness_loss = self.smoothness_loss(reconstructed) * 0.01;
-
-        reconstruction_loss + latent_reg + smoothness_loss
+        reconstruction_loss + latent_reg
     }
 }

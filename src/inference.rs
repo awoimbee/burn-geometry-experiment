@@ -19,7 +19,7 @@ pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, params: Vec<f32>
 
     let data_size = params.len();
     let data = TensorData::new(params, [data_size]);
-    let latent = Tensor::from(data);
+    let latent = Tensor::<_, 1>::from(data);
     let output = model.generate(latent);
     let output_data = output.to_data();
     let slice: &[f32] = output_data.as_slice().unwrap();

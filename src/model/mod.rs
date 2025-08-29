@@ -15,13 +15,13 @@ use crate::data::PointCloudBatch;
 #[macro_export]
 macro_rules! debug_assert_not_nan {
     ($tensor:expr) => {
-        debug_assert!(!$tensor.clone().is_nan().any().into_scalar().to_bool(), "Tensor contains NaN");
-        debug_assert!(!$tensor.clone().is_inf().any().into_scalar().to_bool(), "Tensor contains inf");
-    };
-    ($tensor:expr, $($arg:tt)*) => {
         debug_assert!(
             !$tensor.clone().is_nan().any().into_scalar().to_bool(),
-            $($arg)*
+            "Tensor contains NaN"
+        );
+        debug_assert!(
+            !$tensor.clone().is_inf().any().into_scalar().to_bool(),
+            "Tensor contains inf"
         );
     };
 }
@@ -53,9 +53,9 @@ impl<B: Backend> GeometryAutoEncoder<B> {
         RegressionOutput::new(loss, output, targets)
     }
 
-    /// latent: [B, 256] -> point cloud: [B, N, 3]
-    pub fn generate(&self, latent: Tensor<B, 2>) -> Tensor<B, 3> {
-        self.decoder.forward(latent)
+    /// latent: [L] -> point cloud: [B, N, 3]
+    pub fn generate(&self, latent: Tensor<B, 1>) -> Tensor<B, 2> {
+        self.decoder.forward(latent.unsqueeze()).squeeze(0)
     }
 }
 
