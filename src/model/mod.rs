@@ -6,7 +6,7 @@ use burn::config::Config;
 use burn::module::Module;
 use burn::tensor::Tensor;
 use burn::tensor::backend::{AutodiffBackend, Backend};
-use burn::train::{RegressionOutput, TrainOutput, TrainStep, ValidStep};
+use burn::train::{InferenceStep, RegressionOutput, TrainOutput, TrainStep};
 use decoder::PointCloudDecoder;
 use encoder::GeometryEncoder;
 
@@ -55,13 +55,16 @@ impl<B: Backend> GeometryAutoEncoder<B> {
 
     /// latent: [L] -> point cloud: [B, N, 3]
     pub fn generate(&self, latent: Tensor<B, 1>) -> Tensor<B, 2> {
-        self.decoder.forward(latent.unsqueeze()).squeeze(0)
+        self.decoder.forward(latent.unsqueeze()).squeeze_dim(0)
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<PointCloudBatch<B>, RegressionOutput<B>>
+impl<B: AutodiffBackend> TrainStep
     for GeometryAutoEncoder<B>
 {
+    type Input = PointCloudBatch<B>;
+    type Output = RegressionOutput<B>;
+
     fn step(&self, batch: PointCloudBatch<B>) -> TrainOutput<RegressionOutput<B>> {
         let item = self.forward(batch.points);
         let grads = item.loss.backward();
@@ -70,8 +73,14 @@ impl<B: AutodiffBackend> TrainStep<PointCloudBatch<B>, RegressionOutput<B>>
     }
 }
 
-impl<B: Backend> ValidStep<PointCloudBatch<B>, RegressionOutput<B>> for GeometryAutoEncoder<B> {
-    fn step(&self, batch: PointCloudBatch<B>) -> RegressionOutput<B> {
+
+impl<B: Backend> InferenceStep
+    for GeometryAutoEncoder<B>
+{
+    type Input = PointCloudBatch<B>;
+    type Output = RegressionOutput<B>;
+
+    fn step(&self, batch: Self::Input) -> Self::Output {
         self.forward(batch.points)
     }
 }

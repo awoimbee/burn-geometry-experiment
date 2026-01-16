@@ -8,6 +8,7 @@ use burn::backend::{Autodiff, Wgpu};
 use burn::grad_clipping::GradientClippingConfig;
 use burn::optim::AdamConfig;
 use clap::{Parser, Subcommand};
+use burn::tensor::f16;
 
 use crate::model::GeometryAutoEncoderConfig;
 use crate::training::TrainingConfig;
@@ -32,7 +33,7 @@ enum Commands {
 }
 
 // type MyBackend = NdArray<f32, i32>;
-type MyBackend = Wgpu<f32, i32>;
+type MyBackend = Wgpu<f16, i16>;
 type MyAutodiffBackend = Autodiff<MyBackend>;
 
 /// Main function to run the training and inference.
@@ -47,7 +48,7 @@ fn main() {
     match cli.command {
         Commands::Train {} => {
             let training_config = TrainingConfig::new(
-                GeometryAutoEncoderConfig::new(5000),
+                GeometryAutoEncoderConfig::new(100),
                 AdamConfig::new().with_grad_clipping(Some(GradientClippingConfig::Norm(2.0))),
             );
             let start = std::time::Instant::now();

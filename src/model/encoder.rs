@@ -17,7 +17,7 @@ fn batched_knn<B: Backend>(points: Tensor<B, 3>, k: usize) -> Tensor<B, 3, Int> 
     let points_expanded_2 = points.unsqueeze_dim::<4>(1); // (B, 1, N, 3)
 
     let diff = points_expanded_1 - points_expanded_2; // (B, N, N, 3)
-    let distances = diff.powi_scalar(2).sum_dim(3).squeeze::<3>(3).sqrt(); // (B, N, N)
+    let distances = diff.powi_scalar(2).sum_dim(3).squeeze_dim::<3>(3).sqrt(); // (B, N, N)
 
     // Create diagonal mask and set diagonal to infinity
     let eye = Tensor::<B, 2>::eye(num_points, &device); // (N, N)
@@ -94,7 +94,7 @@ impl<B: Backend> EdgeConvEmbed<B> {
         let edge = h_theta.unsqueeze_dim::<4>(2) + h_phi; // [B, N, k, C]
 
         // 4. Max-pool over neighbours
-        let pooled = edge.max_dim(2).squeeze::<3>(2); // [B, N, C]
+        let pooled = edge.max_dim(2).squeeze_dim::<3>(2); // [B, N, C]
 
         // 5. Final 1×1 conv + norm
         let out = self.psi.forward(pooled); // [B, N, C]
@@ -180,7 +180,7 @@ impl<B: Backend> GeometryEncoder<B> {
         let pooled = self
             .pool
             .forward(tokens.swap_dims(1, 2)) // [B, 128, 1]
-            .squeeze::<2>(2); // [B, 128]
+            .squeeze_dim::<2>(2); // [B, 128]
         self.proj.forward(pooled) // [B, L]
     }
 }

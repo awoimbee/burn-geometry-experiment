@@ -11,12 +11,12 @@ impl<B: Backend> GeometryAutoEncoder<B> {
         let distances = self.pairwise_distances(original, reconstructed);
 
         // Forward direction: for each point in original, find nearest in reconstructed
-        let min_dist_forward = distances.clone().min_dim(2).squeeze::<2>(2); // [B, N]
-        let forward_loss = min_dist_forward.mean_dim(1).squeeze::<1>(1); // [B]
+        let min_dist_forward = distances.clone().min_dim(2).squeeze_dim::<2>(2); // [B, N]
+        let forward_loss = min_dist_forward.mean_dim(1).squeeze_dim::<1>(1); // [B]
 
         // Backward direction: for each point in reconstructed, find nearest in original
-        let min_dist_backward = distances.min_dim(1).squeeze::<2>(1); // [B, M]
-        let backward_loss = min_dist_backward.mean_dim(1).squeeze::<1>(1); // [B]
+        let min_dist_backward = distances.min_dim(1).squeeze_dim::<2>(1); // [B, M]
+        let backward_loss = min_dist_backward.mean_dim(1).squeeze_dim::<1>(1); // [B]
 
         // Total Chamfer distance
         (forward_loss + backward_loss).mean()
@@ -31,7 +31,7 @@ impl<B: Backend> GeometryAutoEncoder<B> {
 
         // Compute squared distances
         let diff = p1_expanded - p2_expanded; // [B, N, M, 3]
-        let squared_distances = diff.powi_scalar(2).sum_dim(3).squeeze::<3>(3); // [B, N, M]
+        let squared_distances = diff.powi_scalar(2).sum_dim(3).squeeze_dim::<3>(3); // [B, N, M]
 
         squared_distances.sqrt()
     }

@@ -4,12 +4,12 @@ use burn::prelude::*;
 use burn::record::CompactRecorder;
 use burn::tensor::backend::AutodiffBackend;
 use burn::train::metric::LossMetric;
-use burn::train::{LearnerBuilder, LearningStrategy};
+use burn::train::{Learner, SupervisedTraining};
 
 use crate::data::{PointCloudBatcher, PointCloudDataset};
 use crate::model::GeometryAutoEncoderConfig;
 
-#[derive(Config)]
+#[derive(Config, Debug)]
 pub struct TrainingConfig {
     pub model: GeometryAutoEncoderConfig,
     pub optimizer: AdamConfig,
@@ -37,7 +37,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .save(format!("{artifact_dir}/config.json"))
         .expect("Config should be saved successfully");
 
-    B::seed(config.seed);
+    B::seed(&device, config.seed);
 
     let batcher = PointCloudBatcher::new(config.model.num_points_sampled);
     let dataloader_train = DataLoaderBuilder::new(batcher.clone())
@@ -61,30 +61,24 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
             config.model.num_points_sampled,
         ));
 
-    let learner = LearnerBuilder::new(artifact_dir)
-        // .metric_train_numeric(AccuracyMetric::new())
-        // .metric_valid_numeric(AccuracyMetric::new())
-        // .metric_train_numeric(CpuUse::new())
-        // .metric_valid_numeric(CpuUse::new())
-        // .metric_train_numeric(CpuMemory::new())
-        // .metric_valid_numeric(CpuMemory::new())
-        // .metric_train_numeric(CpuTemperature::new())
-        // .metric_valid_numeric(CpuTemperature::new())
+    // this is supposed to get a validation dataset, not test
+    let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .learning_strategy(LearningStrategy::SingleDevice(device.clone()))
+
         .num_epochs(config.num_epochs)
-        .summary()
-        .build(
-            config.model.init::<B>(&device),
-            config.optimizer.init(),
-            config.learning_rate,
-        );
+        .summary();
 
-    let model_trained = learner.fit(dataloader_train, dataloader_test);
+    let result = training.launch(Learner::new(
+        config.model.init::<B>(&device),
+        config.optimizer.init(),
+        config.learning_rate,
+    ));
 
-    model_trained
+    // let model_trained = learner.fit(, dataloader_test);
+
+    result
         .model
         .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
         .expect("Trained model should be saved successfully");

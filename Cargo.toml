@@ -9,12 +9,12 @@ license = "MIT"
 opt-level = 2
 
 [dependencies]
-# version = "0.19.0"
-burn = {git = "https://github.com/tracel-ai/burn", branch = "main", features = ["train", "ndarray", "vulkan"] }
+burn = {version = "0.20.0", features = ["train", "ndarray", "vulkan"] }
 clap = { version = "4.5", features = ["derive"] }
 log = "0.4.27"
-nalgebra = "0.33.2"
-ndarray = "0.16.1"
+nalgebra = "0.34.0"
+ndarray = "0.17.0"
 rand = "0.9.1"
 serde_json = "1.0"
-stl_io = "0.8.5"
+stl_io = "0.10.0"
+# vtk-rs = "0.3.0"
