@@ -32,6 +32,9 @@ impl Dataset<PointCloudItem> for PointCloudDataset {
 
 impl PointCloudDataset {
     /// Load all STL files from a directory
+    /// - `dir`: base directory containing 'train' and 'test' subdirectories
+    /// - `split`: 'train' or 'test'
+    /// - `n_points`: number of points to sample from each mesh
     pub fn from_dir<P: AsRef<Path>>(dir: P, split: &str, n_points: usize) -> Self {
         let dir = dir.as_ref().join(split);
         println!("Loading STL files from: {}", dir.display());

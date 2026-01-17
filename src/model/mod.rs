@@ -17,11 +17,13 @@ macro_rules! debug_assert_not_nan {
     ($tensor:expr) => {
         debug_assert!(
             !$tensor.clone().is_nan().any().into_scalar().to_bool(),
-            "Tensor contains NaN"
+            "Tensor {} contains NaN",
+            stringify!($tensor)
         );
         debug_assert!(
             !$tensor.clone().is_inf().any().into_scalar().to_bool(),
-            "Tensor contains inf"
+            "Tensor {} contains inf",
+            stringify!($tensor)
         );
     };
 }
