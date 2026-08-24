@@ -26,9 +26,21 @@ enum Commands {
     Train {},
     /// Generate a geometry from latent parameters
     Generate {
-        /// Path to the directory where the model artifacts are saved.
-        #[arg(short, long, num_args = 1..)]
+        /// 8 latent parameters (omit and use --count to sample the latent space instead)
+        #[arg(short, long, num_args = 1.., allow_hyphen_values = true)]
         parameters: Vec<f32>,
+        /// Generate N geometries from random latents (writes artifacts/generated/)
+        #[arg(short = 'n', long, default_value_t = 0)]
+        count: usize,
+        /// Latent sampling distribution for --count
+        #[arg(long, value_enum, default_value_t = crate::inference::LatentDist::Gaussian)]
+        dist: crate::inference::LatentDist,
+        /// Gaussian std or uniform half-range for --count
+        #[arg(long, default_value_t = 1.0)]
+        scale: f32,
+        /// RNG seed for --count
+        #[arg(long, default_value_t = 42)]
+        seed: u64,
     },
 }
 
@@ -56,8 +68,28 @@ fn main() {
             let duration = start.elapsed();
             println!("Training time: {duration:?}");
         }
-        Commands::Generate { parameters } => {
-            crate::inference::infer::<MyBackend>(artifact_dir, device, parameters);
+        Commands::Generate {
+            parameters,
+            count,
+            dist,
+            scale,
+            seed,
+        } => {
+            if !parameters.is_empty() && count > 0 {
+                eprintln!("error: use either --parameters or --count, not both");
+                std::process::exit(2);
+            }
+            if parameters.len() == crate::inference::LATENT_DIM {
+                crate::inference::infer::<MyBackend>(artifact_dir, device, parameters);
+            } else if count > 0 {
+                crate::inference::infer_batch::<MyBackend>(artifact_dir, device, count, dist, scale, seed);
+            } else {
+                eprintln!(
+                    "error: provide {} --parameters or --count N",
+                    crate::inference::LATENT_DIM
+                );
+                std::process::exit(2);
+            }
         }
     }
 }
