@@ -23,4 +23,7 @@ target/
 /artifacts
 /dataset/
 
+__pycache__/
+*.pyc
+
 *.ipynb
