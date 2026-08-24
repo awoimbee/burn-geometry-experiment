@@ -110,12 +110,20 @@ def main() -> int:
         default=8,
         help="poisson octree depth; higher = finer detail, slower (default: 8)",
     )
+    ap.add_argument(
+        "--max-tris",
+        type=int,
+        default=0,
+        help="decimate to at most this many triangles (default: 0 = off)",
+    )
     args = ap.parse_args()
 
     points = read_points(args.input)
     print(f"read {len(points)} points from {args.input}")
 
     ms, method = reconstruct(points, args.method, args.depth)
+    if args.max_tris > 0 and ms.current_mesh().face_number() > args.max_tris:
+        ms.meshing_decimation_quadric_edge_collapse(targetfacenum=args.max_tris)
     mesh = ms.current_mesh()
     if mesh.vertex_number() == 0 or mesh.face_number() == 0:
         raise SystemExit(f"{method} produced an empty mesh; nothing to write")

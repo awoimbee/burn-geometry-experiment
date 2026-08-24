@@ -2,7 +2,9 @@
 """Run N inferences across the latent space and assemble a GIF of the geometries.
 
 Samples N latent vectors with `burn-mnist generate --count N`, then for each:
-  1. Poisson-reconstruct the 100-point cloud (sidecar/reconstruct.py, in-process)
+  1. Poisson-reconstruct the 100-point cloud via sidecar/reconstruct.py
+     (in a subprocess: pymeshlab's C++ core can call exit(0) mid-reconstruction
+     after many runs in one process, so each frame gets a fresh process)
   2. render the mesh to a frame (fixed camera, Lambert shading)
 
 Usage (from the repo root):
@@ -16,7 +18,6 @@ Usage (from the repo root):
 #   "numpy",
 #   "matplotlib",
 #   "pillow",
-#   "pymeshlab",
 # ]
 # ///
 
@@ -29,8 +30,6 @@ from pathlib import Path
 import numpy as np
 
 REPO = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO / "sidecar"))
-import reconstruct  # noqa: E402
 
 import matplotlib  # noqa: E402
 
@@ -47,7 +46,7 @@ BASE_COLOR = np.array([0.75, 0.85, 1.0])
 def ensure_binary() -> Path:
     binary = REPO / "target" / "release" / "burn-mnist"
     if not binary.exists():
-        print("building release binary...")
+        print("building release binary...", flush=True)
         subprocess.run(["cargo", "build", "--release"], cwd=REPO, check=True)
     return binary
 
@@ -68,15 +67,55 @@ def run_batch_inference(binary: Path, n: int, dist: str, scale: float, seed: int
     return paths, latents
 
 
-def mesh_arrays(points: np.ndarray, method: str, depth: int, max_tris: int):
-    """Return (verts, faces) as numpy copies; safe to GC the MeshSet afterwards."""
-    ms, used = reconstruct.reconstruct(points, method, depth)
-    if max_tris > 0 and ms.current_mesh().face_number() > max_tris:
-        ms.meshing_decimation_quadric_edge_collapse(targetfacenum=max_tris)
-    verts = np.array(ms.current_mesh().vertex_matrix(), dtype=np.float64)
-    faces = np.array(ms.current_mesh().face_matrix(), dtype=np.int64)
-    del ms
-    return verts, faces, used
+def reconstruct_cmd() -> list[str]:
+    script = REPO / "sidecar" / "reconstruct.py"
+    venv_python = REPO / "sidecar" / ".venv" / "bin" / "python"
+    if venv_python.exists():
+        return [str(venv_python), str(script)]
+    return ["uv", "run", "--directory", str(REPO / "sidecar"), "python", str(script)]
+
+
+def reconstruct_mesh(
+    vtk: Path, stl: Path, method: str, depth: int, max_tris: int, attempts: int = 3
+) -> bool:
+    """Reconstruct in a fresh subprocess; retry if it dies without writing the mesh."""
+    cmd = reconstruct_cmd() + [
+        str(vtk), "-o", str(stl),
+        "--method", method, "--depth", str(depth),
+    ]
+    if max_tris > 0:
+        cmd += ["--max-tris", str(max_tris)]
+    for attempt in range(1, attempts + 1):
+        if stl.exists():
+            stl.unlink()
+        r = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)
+        if r.returncode == 0 and stl.exists() and stl.stat().st_size > 84:
+            return True
+        lines = (r.stderr or r.stdout or "").strip().splitlines()
+        print(
+            f"  reconstruction attempt {attempt}/{attempts} failed "
+            f"(rc={r.returncode}): {lines[-1] if lines else 'no output'}",
+            file=sys.stderr, flush=True,
+        )
+    return False
+
+
+def read_stl(path: Path) -> np.ndarray:
+    """Parse a binary STL; returns triangles as (M, 3, 3) float array."""
+    data = path.read_bytes()
+    if len(data) < 84:
+        raise ValueError(f"{path} too small for binary STL")
+    n = int.from_bytes(data[80:84], "little")
+    if len(data) != 84 + 50 * n:
+        raise ValueError(f"{path}: size {len(data)} != expected {84 + 50 * n} for {n} triangles")
+    rec = np.frombuffer(
+        data,
+        dtype=np.dtype(
+            [("normal", "<f4", (3,)), ("verts", "<f4", (3, 3)), ("attr", "<u2")]
+        ),
+        count=n, offset=84,
+    )
+    return rec["verts"].copy()
 
 
 class Renderer:
@@ -94,8 +133,7 @@ class Renderer:
         self.ax.set_axis_off()
         self.collection = None
 
-    def frame(self, verts: np.ndarray, faces: np.ndarray) -> Image.Image:
-        tris = verts[faces]
+    def frame(self, tris: np.ndarray) -> Image.Image:
         tris = tris - tris.mean(axis=(0, 1))
         scale = np.abs(tris).max()
         if scale > 0:
@@ -167,28 +205,25 @@ def main() -> int:
 
     binary = ensure_binary()
     paths, latents = run_batch_inference(binary, args.n, args.dist, args.scale, args.seed)
-    print(f"generated {args.n} point clouds in artifacts/generated/ "
-          f"({args.dist}, scale={args.scale}, seed={args.seed})")
+    gen_dir = paths[0].parent
+    print(f"generated {args.n} point clouds in {gen_dir} "
+          f"({args.dist}, scale={args.scale}, seed={args.seed})", flush=True)
 
     renderer = Renderer(args.size)
     frames = []
     skipped = 0
     t0 = time.time()
 
-    for i, (path, params) in enumerate(zip(paths, latents)):
-        points = reconstruct.read_points_vtk(path)
-        try:
-            verts, faces, used = mesh_arrays(points, args.method, args.depth, args.max_tris)
-        except Exception as e:
-            print(f"[{i + 1}/{args.n}] reconstruction failed: {e}", file=sys.stderr)
+    for i, (vtk_path, params) in enumerate(zip(paths, latents)):
+        stl_path = gen_dir / f"mesh_{i:04}.stl"
+        if not reconstruct_mesh(vtk_path, stl_path, args.method, args.depth, args.max_tris):
+            print(f"[{i + 1}/{args.n}] reconstruction failed after retries, skipped",
+                  file=sys.stderr, flush=True)
             skipped += 1
             continue
-        if len(faces) == 0:
-            print(f"[{i + 1}/{args.n}] degenerate mesh, skipped", file=sys.stderr)
-            skipped += 1
-            continue
-        frames.append(overlay_text(renderer.frame(verts, faces), params))
-        print(f"[{i + 1}/{args.n}] {used}: {len(faces)} tris  ({time.time() - t0:.0f}s)")
+        tris = read_stl(stl_path)
+        frames.append(overlay_text(renderer.frame(tris), params))
+        print(f"[{i + 1}/{args.n}] {len(tris)} tris  ({time.time() - t0:.0f}s)", flush=True)
 
     renderer.close()
     if not frames:
@@ -203,7 +238,8 @@ def main() -> int:
         duration=args.duration,
         loop=0,
     )
-    print(f"wrote {args.out} ({len(frames)} frames, {skipped} skipped, {time.time() - t0:.0f}s)")
+    print(f"wrote {args.out} ({len(frames)} frames, {skipped} skipped, {time.time() - t0:.0f}s)",
+          flush=True)
     return 0
 
 
