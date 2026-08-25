@@ -1,4 +1,10 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = "==3.12.*"
+# dependencies = [
+#     "vtk==9.4.2",
+# ]
+# ///
 """Regenerate dataset/{train,test} as clean binary STL meshes using VTK.
 
 Each mesh is watertight and free of degenerate triangles; every written file
