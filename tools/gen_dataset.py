@@ -9,7 +9,7 @@ the script exits.
 import math
 import struct
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 from vtk import (
@@ -90,14 +90,54 @@ def cone(radius: float, height: float, res: int = 48) -> vtkPolyData:
     return as_polydata(c)
 
 
-def capsule(radius: float, height: float, res: int = 32) -> vtkPolyData:
-    c = vtkCylinderSource()
-    c.SetRadius(radius)
-    c.SetHeight(height)
-    c.SetResolution(res)
-    c.SetCapping(True)
-    c.SetCapsuleCap(True)
-    return as_polydata(c)
+def capsule(radius: float, height: float, nu: int = 48, n: int = 8) -> vtkPolyData:
+    """Capsule: cylinder of straight length `height` with hemispherical caps of `radius`.
+
+    Built as an explicit grid of rings (poles are single shared vertices) so the
+    result is a clean closed 2-manifold; VTK's SetCapsuleCap leaves open edges.
+    """
+    h2, r = height / 2, radius
+    # profile rows from bottom pole to top pole: (rho, z)
+    profile = [(0.0, -h2 - r)]
+    for j in range(1, n):  # bottom cap
+        beta = 0.5 * math.pi * j / n
+        profile.append((r * math.cos(beta), -h2 - r * math.sin(beta)))
+    profile.append((r, -h2))  # bottom equator
+    for j in range(1, n):  # side
+        profile.append((r, -h2 + height * j / n))
+    profile.append((r, h2))  # top equator
+    for j in range(1, n):  # top cap
+        beta = 0.5 * math.pi * j / n
+        profile.append((r * math.cos(beta), h2 + r * math.sin(beta)))
+    profile.append((0.0, h2 + r))
+
+    pts = []
+    row_base = []
+    for rho, z in profile:
+        row_base.append(len(pts))
+        if rho == 0.0:  # pole: one shared vertex
+            pts.append((0.0, 0.0, z))
+        else:
+            for i in range(nu):
+                u = 2 * math.pi * i / nu
+                pts.append((rho * math.cos(u), rho * math.sin(u), z))
+
+    def vid(k: int, i: int) -> int:
+        return row_base[k] if profile[k][0] == 0.0 else row_base[k] + (i % nu)
+
+    cells = []
+    for k in range(len(profile) - 1):
+        for i in range(nu):
+            i2 = (i + 1) % nu
+            a, b = vid(k, i), vid(k, i2)
+            c, d = vid(k + 1, i2), vid(k + 1, i)
+            if profile[k][0] == 0.0:  # bottom pole row: triangle (pole, ring_i+1, ring_i)
+                cells.append((a, c, d))
+            elif profile[k + 1][0] == 0.0:  # top pole row
+                cells.append((a, b, c))
+            else:
+                cells.append((a, b, c, d))
+    return mesh_from_points_cells(pts, cells)
 
 
 def mesh_from_points_cells(points, cells) -> vtkPolyData:
@@ -128,7 +168,7 @@ def torus(major: float, minor: float, nu: int = 48, nv: int = 32) -> vtkPolyData
         for j in range(nv):
             j2 = (j + 1) % nv
             a = i * nv + j
-            cells.append((a, i2 * nv + j, i2 * nv + j2, a + 1))
+            cells.append((a, i2 * nv + j, i2 * nv + j2, i * nv + j2))
     return mesh_from_points_cells(pts, cells)
 
 
@@ -184,11 +224,18 @@ def write_binary_stl(poly: vtkPolyData, path: Path) -> None:
 
 
 def validate_stl(path: Path) -> tuple[int, tuple[float, float, float]]:
+    """Validate a binary STL is a closed, consistently oriented 2-manifold.
+
+    Checks: binary layout, zero-area triangles, every directed edge appears
+    exactly once AND its reverse exists (catches non-manifold and open edges),
+    and every vertex link is a single cycle (vertex-level manifoldness).
+    """
     data = path.read_bytes()
     n = struct.unpack_from("<I", data, 80)[0]
     if len(data) != 84 + 50 * n:
         raise ValueError("bad binary STL size")
     edges: Counter = Counter()
+    links: dict = defaultdict(lambda: defaultdict(set))
     lo = [float("inf")] * 3
     hi = [float("-inf")] * 3
     for i in range(n):
@@ -203,13 +250,32 @@ def validate_stl(path: Path) -> tuple[int, tuple[float, float, float]]:
             raise ValueError(f"degenerate triangle at index {i}")
         for u, v in ((va, vb), (vb, vc), (vc, va)):
             edges[(u, v)] += 1
+        for a_, b_, c_ in ((va, vb, vc), (vb, vc, va), (vc, va, vb)):
+            links[a_][b_].add(c_)
+            links[a_][c_].add(b_)
         for p in (va, vb, vc):
             for axis, val in enumerate(p):
                 lo[axis] = min(lo[axis], val)
                 hi[axis] = max(hi[axis], val)
     bad = [e for e, c in edges.items() if c != 1]
     if bad:
-        raise ValueError(f"not a closed 2-manifold ({len(bad)} bad directed edges)")
+        raise ValueError(f"non-manifold edges ({len(bad)} directed edges appear != 1 time)")
+    open_ = [e for e in edges if e[::-1] not in edges]
+    if open_:
+        raise ValueError(f"open edges / inconsistent orientation ({len(open_)} directed edges missing reverse)")
+    for v, nbrs in links.items():
+        if any(len(s) != 2 for s in nbrs.values()):
+            raise ValueError(f"non-manifold vertex {v} (link degree != 2)")
+        start = next(iter(nbrs))
+        seen, stack = {start}, [start]
+        while stack:
+            cur = stack.pop()
+            for nxt in nbrs[cur]:
+                if nxt not in seen:
+                    seen.add(nxt)
+                    stack.append(nxt)
+        if len(seen) != len(nbrs):
+            raise ValueError(f"non-manifold vertex {v} (disconnected link)")
     extent = tuple(round(hi[i] - lo[i], 3) for i in range(3))
     return n, extent
 
