@@ -1,4 +1,12 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10,<3.14"
+# dependencies = [
+#   "numpy",
+#   "matplotlib",
+#   "pillow",
+# ]
+# ///
 """Run N inferences across the latent space and assemble a GIF of the geometries.
 
 Samples N latent vectors with `burn-mnist generate --count N`, then for each:
@@ -8,18 +16,9 @@ Samples N latent vectors with `burn-mnist generate --count N`, then for each:
   2. render the mesh to a frame (fixed camera, Lambert shading)
 
 Usage (from the repo root):
-    uv run tools/latent_gif.py
-    uv run tools/latent_gif.py --n 100 --dist uniform --scale 2.0 --out artifacts/latent_gif.gif
+    ./tools/latent_gif.py
+    ./tools/latent_gif.py --n 100 --dist uniform --scale 2.0 --out artifacts/latent_gif.gif
 """
-
-# /// script
-# requires-python = ">=3.10,<3.14"
-# dependencies = [
-#   "numpy",
-#   "matplotlib",
-#   "pillow",
-# ]
-# ///
 
 import argparse
 import subprocess
