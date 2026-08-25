@@ -1,8 +1,8 @@
 #!/usr/bin/env -S uv run --script
 # /// script
-# requires-python = "==3.12.*"
+# requires-python = ">=3.12"
 # dependencies = [
-#     "vtk==9.4.2",
+#     "vtk==9.7",
 # ]
 # ///
 """Regenerate dataset/{train,test} as clean binary STL meshes using VTK.
