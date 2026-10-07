@@ -10,9 +10,10 @@
 """Run N inferences across the latent space and assemble a GIF of the geometries.
 
 Samples N latent vectors with `burn-mnist generate --count N`, then for each:
-  1. Poisson-reconstruct the 100-point cloud via sidecar/reconstruct.py
-     (in a subprocess: pymeshlab's C++ core can call exit(0) mid-reconstruction
-     after many runs in one process, so each frame gets a fresh process)
+  1. Reconstruct the point cloud into a mesh by shelling out to the Rust
+     `reconstruct` binary (VTK surface reconstruction + contour + smoothing +
+     decimation); a fresh process per frame also keeps any native state from
+     one reconstruction out of the next
   2. render the mesh to a frame (fixed camera, Lambert shading)
 
 Usage (from the repo root):
@@ -42,10 +43,10 @@ LIGHT /= np.linalg.norm(LIGHT)
 BASE_COLOR = np.array([0.75, 0.85, 1.0])
 
 
-def ensure_binary() -> Path:
-    binary = REPO / "target" / "release" / "burn-mnist"
+def ensure_binary(name: str = "burn-mnist") -> Path:
+    binary = REPO / "target" / "release" / name
     if not binary.exists():
-        print("building release binary...", flush=True)
+        print("building release binaries...", flush=True)
         subprocess.run(["cargo", "build", "--release"], cwd=REPO, check=True)
     return binary
 
@@ -67,20 +68,17 @@ def run_batch_inference(binary: Path, n: int, dist: str, scale: float, seed: int
 
 
 def reconstruct_cmd() -> list[str]:
-    script = REPO / "sidecar" / "reconstruct.py"
-    venv_python = REPO / "sidecar" / ".venv" / "bin" / "python"
-    if venv_python.exists():
-        return [str(venv_python), str(script)]
-    return ["uv", "run", "--directory", str(REPO / "sidecar"), "python", str(script)]
+    """Path to the Rust VTK reconstructor (src/bin/reconstruct.rs)."""
+    return [str(ensure_binary("reconstruct"))]
 
 
 def reconstruct_mesh(
-    vtk: Path, stl: Path, method: str, depth: int, max_tris: int, attempts: int = 3
+    vtk: Path, stl: Path, method: str, spacing: float, max_tris: int, attempts: int = 3
 ) -> bool:
     """Reconstruct in a fresh subprocess; retry if it dies without writing the mesh."""
     cmd = reconstruct_cmd() + [
         str(vtk), "-o", str(stl),
-        "--method", method, "--depth", str(depth),
+        "--method", method, "--spacing", str(spacing),
     ]
     if max_tris > 0:
         cmd += ["--max-tris", str(max_tris)]
@@ -195,14 +193,18 @@ def main() -> int:
         "--method", choices=["auto", "poisson", "hull"], default="auto",
         help="reconstruction method (default: auto)",
     )
-    ap.add_argument("--depth", type=int, default=8, help="poisson octree depth (default: 8)")
+    ap.add_argument(
+        "--spacing", type=float, default=0.05,
+        help="VTK implicit-function sample spacing for the surface reconstruction "
+             "(0 = automatic; default: 0.05)",
+    )
     ap.add_argument(
         "--max-tris", type=int, default=1500,
         help="decimate meshes to at most this many triangles (default: 1500, 0 = off)",
     )
     args = ap.parse_args()
 
-    binary = ensure_binary()
+    binary = ensure_binary("burn-mnist")
     paths, latents = run_batch_inference(binary, args.n, args.dist, args.scale, args.seed)
     gen_dir = paths[0].parent
     print(f"generated {args.n} point clouds in {gen_dir} "
@@ -215,7 +217,7 @@ def main() -> int:
 
     for i, (vtk_path, params) in enumerate(zip(paths, latents)):
         stl_path = gen_dir / f"mesh_{i:04}.stl"
-        if not reconstruct_mesh(vtk_path, stl_path, args.method, args.depth, args.max_tris):
+        if not reconstruct_mesh(vtk_path, stl_path, args.method, args.spacing, args.max_tris):
             print(f"[{i + 1}/{args.n}] reconstruction failed after retries, skipped",
                   file=sys.stderr, flush=True)
             skipped += 1

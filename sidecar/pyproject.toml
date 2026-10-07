@@ -1,9 +1,0 @@
-[project]
-name = "geometry-sidecar"
-version = "0.1.0"
-description = "Reconstruct a triangle mesh from the point cloud written by the Rust binary"
-requires-python = ">=3.10,<3.14"
-dependencies = [
-    "pymeshlab",
-    "numpy",
-]
