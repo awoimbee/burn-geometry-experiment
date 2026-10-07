@@ -843,9 +843,9 @@ dependencies = [
  "nalgebra",
  "ndarray 0.17.2",
  "rand 0.10.2",
+ "rvtk",
  "serde_json",
  "stl_io",
- "vtk",
 ]
 
 [[package]]
@@ -5682,6 +5682,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
+name = "rvtk"
+version = "0.1.0"
+dependencies = [
+ "rvtk-sys",
+]
+
+[[package]]
+name = "rvtk-sys"
+version = "0.1.0"
+dependencies = [
+ "cmake",
+]
+
+[[package]]
 name = "ryu"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7094,20 +7108,6 @@ name = "void"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
-
-[[package]]
-name = "vtk"
-version = "0.1.0"
-dependencies = [
- "vtk-sys",
-]
-
-[[package]]
-name = "vtk-sys"
-version = "0.1.0"
-dependencies = [
- "cmake",
-]
 
 [[package]]
 name = "vtparse"

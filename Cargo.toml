@@ -17,5 +17,5 @@ ndarray = "0.17.0"
 rand = "0.10.2"
 serde_json = "1.0"
 stl_io = "0.11.0"
-vtk = { path = "../rvtk/vtk" }
+vtk = { package = "rvtk", path = "../rvtk/rvtk" }
 # vtk-rs = "0.3.0"
